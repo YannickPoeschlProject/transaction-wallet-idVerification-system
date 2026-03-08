@@ -1,0 +1,144 @@
+package de.yannickPoeschl.transaction_Wallet_IdVerification_System.service;
+
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.Exceptions.ZeroOrNegativeValueException;
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.Exceptions.IsNullException;
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.config.GlobalConstants;
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.model.transaction.Transaction;
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.model.transaction.TransactionStatus;
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.model.transaction.TransactionType;
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.model.useraccount.Useraccount;
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.model.wallet.Wallet;
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.repository.TransactionRepository;
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.repository.UseraccountRepository;
+import de.yannickPoeschl.transaction_Wallet_IdVerification_System.rest.dto.TransactionExecuteDto;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class TransactionService {
+    
+    private final UseraccountRepository useraccountRepository;
+    private final TransactionRepository transactionRepository;
+    private final WalletService walletService;
+
+    @Transactional
+    public List<Transaction> getAll(){
+        return transactionRepository.findAll();
+    }
+
+    @Transactional
+    public Transaction getById(long id){
+        return transactionRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Es wurden keine " +
+                "Transaktion mit der ID " + id + " gefunden."));
+    }
+
+    @Transactional
+    public List<Transaction> getAllByUseraccountId(long useraccountId){
+        return transactionRepository.findAllByUseraccountId(useraccountId);
+    }
+
+    @Transactional
+    public List<Transaction> getAllByType(TransactionType type){
+        return transactionRepository.findAllByType(type);
+    }
+
+    @Transactional
+    public List<Transaction> getAllByStatus(TransactionStatus status){
+        return transactionRepository.findAllByStatus(status);
+    }
+
+    @Transactional
+    public List<Transaction> getAllByDateTimeCreated(LocalDateTime dateTimeCreated){
+        return transactionRepository.findAllByDateTimeCreated(dateTimeCreated);
+    }
+
+    @Transactional
+    public List<Transaction> getAllByDateTimeLastUpdate(LocalDateTime dateTimeLastUpdate){
+        return transactionRepository.findAllByDateTimeLastUpdate(dateTimeLastUpdate);
+    }
+
+    @Transactional
+    public long getCountSuccessfulDeposits(long useraccountId){
+        return transactionRepository.findCountSuccessfulDeposits(useraccountId);
+    }
+
+    @Transactional
+    public Transaction createTransaction (long useraccountId, TransactionType type, long amount)
+    {
+        //Gibt es User?
+        Useraccount u = useraccountRepository.findById(useraccountId).orElseThrow(() -> new
+                EntityNotFoundException("Es wurde kein User mit der ID " + useraccountId + " gefunden."));
+
+        //Ist amount positiv?
+        if (amount <= 0){
+            throw new ZeroOrNegativeValueException("Der Transaktionsbetrag muss positiv sein.");
+        }
+
+        //Objekt anlegen
+        Transaction t = new Transaction(u, type, amount, TransactionStatus.PROCESSING);
+        transactionRepository.save(t);
+
+        return t;
+    }
+    //Hier wird die Logik zur Transaktionserstellung und Aktualisierung des Wallet-Guthabens gebündelt
+    @Transactional
+    public TransactionExecuteDto executeTransaction(long useraccountId, TransactionType type, long amount){
+
+        //Gibt es Useraccount? Ja: Useraccount speichern und walletId verwenden
+        Useraccount u  = useraccountRepository.findById(useraccountId).orElseThrow(() -> new
+                EntityNotFoundException("Es wurden kein User mit der ID " + useraccountId + " gefunden."));
+
+        //Prüfung ob Wallet hinterlegt ist
+        if (u.getWallet() == null) {
+            throw new IsNullException ("Dem User mit ID " + useraccountId + " wurde noch kein Wallet zugewiesen.");
+        }
+
+        //Erstellen und Speichern des Transaction-Objekts
+        Transaction t = createTransaction(useraccountId, type, amount);
+
+        //TODO: Hier könnten noch Prüfungen zwischen dem Erstellen der Transaktion und dem Update der WalletBalance
+        //TODO: eingetragen werden
+
+        //Update von WalletBalance
+        Wallet w = walletService.updateWalletBalance(u.getWallet().getId(), t.getId());
+
+        //Buchung von beispielsweise 2000 Points bei erster Einzahlung
+        if (getCountSuccessfulDeposits(useraccountId) == 1) {
+            walletService.updateWalletBonusBalance(u.getWallet().getId(), GlobalConstants.BONUS_POINTS_FIRST_DEPOSIT);
+        }
+
+        TransactionExecuteDto dto = TransactionExecuteDto.fromEntity(t, w);
+
+                return dto;
+    }
+
+    @Transactional
+    public Transaction updateTransactionStatus(long id, TransactionStatus status) {
+
+        //Gibt es Transaktion?
+        Transaction t = transactionRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Es wurde" +
+                " keine Transaktion mit der ID " + id + " gefunden."));
+
+        //Ist Status null?
+        if (status == null) {
+            throw new IsNullException("Status ist null.");
+        }
+
+        t.setStatus(status);
+
+        transactionRepository.save(t);
+
+        return t;
+    }
+
+}
+
+
+
