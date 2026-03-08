@@ -16,4 +16,4 @@ GlobalExceptionHandler: Exceptions are caught and handled centrally
 
 4. DATA MODEL
 
-[Click here to view the Data Model](images/model.png)
+[Click here to view the Data Model](images/entityModel.png)
