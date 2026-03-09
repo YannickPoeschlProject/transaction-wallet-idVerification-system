@@ -8,7 +8,7 @@ This is a Spring Boot backend system for managing transactions, wallets, and ID 
 ## 3. Key Features
 * **Wallet Management:** Creation and management of user wallets.
 * **Transaction Processing:** Deposits and withdrawals with status tracking (`PROCESSING`, `COMPLETED`, `FAILED`, `LOCKED`).
-* **ID Verification:** Complete identity verification by uploading a picture.
+* **ID Verification:** Complete storage of German ID card data (The implementation of AI for ID card verification is scheduled for May.)
 * **Security Limits:** Monthly deposit limits with automatic monitoring.
 * **REST-API:** Complete API endpoints for all core functionalities.
 * **GlobalExceptionHandler:** Exceptions are caught and handled centrally.
